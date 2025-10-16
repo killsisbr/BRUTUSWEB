@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - BrutusWeb</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  <div class="mobile-container">
+    <!-- Cabeçalho -->
+    <header class="app-header">
+      <h1>Admin - Brutus Burger</h1>
+    </header>
+
+    <!-- Lista de Produtos -->
+    <section class="admin-products">
+      <h2>Gerenciar Produtos</h2>
+      <div id="products-list" class="products-list">
+        <!-- Produtos serão carregados aqui -->
+      </div>
+    </section>
+
+    <!-- Modal de Edição de Imagem -->
+    <div id="image-modal" class="modal">
+      <div class="modal-content image-modal">
+        <div class="modal-header">
+          <h2>Editar Imagem</h2>
+          <button class="close-button">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="product-preview">
+            <img id="edit-product-image" src="" alt="" class="preview-image">
+            <div class="product-details">
+              <h3 id="edit-product-name"></h3>
+              <div class="product-price" id="edit-product-price"></div>
+            </div>
+          </div>
+          <div class="image-upload-section">
+            <label for="image-url">URL da Imagem:</label>
+            <input type="text" id="image-url" placeholder="https://exemplo.com/imagem.jpg">
+            <button id="save-image-btn" class="checkout-button">Salvar Imagem</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="admin.js"></script>
+</body>
+</html>
