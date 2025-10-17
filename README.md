@@ -69,6 +69,24 @@ Antes de começar, você precisa ter instalado em sua máquina:
    - Popular o banco de dados
    - Configurar o serviço systemd
    - (Opcional) Instalar e configurar Nginx como proxy reverso
+   - (Opcional) Configurar SSL com Let's Encrypt
+
+### Método 3: Instalação no Windows
+
+1. **Instale as dependências**:
+   ```cmd
+   cd server
+   npm install
+   npm install -g pm2
+   ```
+
+2. **Inicie o servidor com PM2**:
+   ```cmd
+   pm2 start ../ecosystem.config.js
+   ```
+
+3. **Acesse a aplicação**:
+   Abra seu navegador e acesse `http://localhost:3005`
 
 ## 🛠️ Estrutura do Projeto
 
@@ -89,7 +107,10 @@ brutusweb/
 │   ├── package.json       # Dependências do projeto
 │   └── db.sqlite          # Banco de dados SQLite
 ├── cardapio.json          # Cardápio completo do restaurante
-├── setup.sh               # Script de instalação automatizada
+├── setup.sh               # Script de instalação automatizada (Linux/VPS)
+├── SSL.md                 # Guia de configuração de SSL com Let's Encrypt (Linux)
+├── SSL_WINDOWS.md         # Guia de configuração de SSL com Let's Encrypt (Windows)
+├── DEPLOY.md              # Guia completo de deploy em produção
 └── README.md              # Este arquivo
 ```
 
@@ -139,16 +160,19 @@ npm start
 cd server
 node popular_db.js
 
-# Verificar status do serviço (em VPS)
-sudo systemctl status brutusweb
+# Verificar status do serviço (com PM2)
+pm2 status
 
 # Ver logs do serviço
-sudo journalctl -u brutusweb -f
+pm2 logs brutusweb
+
+# Reiniciar serviço
+pm2 restart brutusweb
 ```
 
 ## 🚀 Deploy em Produção
 
-### Com Nginx (Recomendado)
+### Com Nginx (Recomendado - Linux)
 
 O script de setup já configura o Nginx como proxy reverso. Para configurar um domínio:
 
@@ -159,14 +183,26 @@ O script de setup já configura o Nginx como proxy reverso. Para configurar um d
    sudo systemctl restart nginx
    ```
 
+### Com IIS (Recomendado - Windows)
+
+Para configurar no Windows com IIS:
+
+1. Instale o IIS no Windows
+2. Configure o site para apontar para a pasta `public`
+3. Siga as instruções em [SSL_WINDOWS.md](SSL_WINDOWS.md)
+
 ### Com SSL (Let's Encrypt)
 
 Para adicionar HTTPS:
 
+**No Linux:**
 ```bash
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d seu-dominio.com
 ```
+
+**No Windows:**
+Consulte o guia detalhado em [SSL_WINDOWS.md](SSL_WINDOWS.md)
 
 ## 📊 Banco de Dados
 
@@ -199,6 +235,7 @@ Comandos disponíveis:
 - O script de setup cria um usuário dedicado para a aplicação
 - Permissões restritas para arquivos sensíveis
 - Configuração de firewall básica
+- Suporte a SSL/TLS com Let's Encrypt
 
 ## 📈 Melhorias Planejadas
 
@@ -218,5 +255,3 @@ Este projeto é licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE
 
 - Desenvolvido para facilitar pedidos em restaurantes de forma simples e visual
 - Contribuições são bem-vindas!
-
----

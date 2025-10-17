@@ -42,7 +42,8 @@ O script irá:
 3. Criar usuário dedicado para a aplicação
 4. Instalar e configurar PM2 para gerenciamento de processos
 5. Configurar Nginx como proxy reverso (opcional)
-6. Configurar firewall básico
+6. Configurar SSL com Let's Encrypt (opcional)
+7. Configurar firewall básico
 
 ### 2. Deploy Manual
 
@@ -164,7 +165,7 @@ sudo ufw --force enable
 
 ### 2. SSL/TLS
 
-Configure HTTPS com Let's Encrypt:
+Configure HTTPS com Let's Encrypt. Consulte o guia detalhado em [SSL.md](SSL.md):
 
 ```bash
 # Instalar Certbot
@@ -303,6 +304,18 @@ sudo npm update -g pm2
    sudo systemctl restart nginx
    ```
 
+5. **Problemas com SSL**
+   ```bash
+   # Verificar certificados
+   sudo certbot certificates
+   
+   # Testar renovação
+   sudo certbot renew --dry-run
+   
+   # Verificar logs
+   sudo tail -f /var/log/letsencrypt/letsencrypt.log
+   ```
+
 ## 📈 Backup
 
 ### Backup do Banco de Dados
@@ -333,6 +346,7 @@ Para suporte adicional, consulte:
 - Documentação oficial do Node.js
 - Documentação do PM2
 - Documentação do Nginx
+- Documentação do Let's Encrypt
 - Comunidade do Express.js
 
----
+Para informações detalhadas sobre configuração de SSL, consulte [SSL.md](SSL.md).
