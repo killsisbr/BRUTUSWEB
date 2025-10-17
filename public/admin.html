@@ -37,10 +37,28 @@
               <div class="product-price" id="edit-product-price"></div>
             </div>
           </div>
-          <div class="image-upload-section">
-            <label for="image-url">URL da Imagem:</label>
-            <input type="text" id="image-url" placeholder="https://exemplo.com/imagem.jpg">
-            <button id="save-image-btn" class="checkout-button">Salvar Imagem</button>
+          
+          <!-- Abas para diferentes métodos de imagem -->
+          <div class="image-tabs">
+            <button id="tab-upload" class="tab-btn active">Upload</button>
+            <button id="tab-url" class="tab-btn">URL</button>
+          </div>
+          
+          <!-- Conteúdo das abas -->
+          <div id="upload-content" class="tab-content active">
+            <div class="image-upload-section">
+              <label for="image-file">Selecionar Imagem:</label>
+              <input type="file" id="image-file" accept="image/*">
+              <button id="upload-image-btn" class="checkout-button">Fazer Upload</button>
+            </div>
+          </div>
+          
+          <div id="url-content" class="tab-content">
+            <div class="image-url-section">
+              <label for="image-url">URL da Imagem:</label>
+              <input type="text" id="image-url" placeholder="https://exemplo.com/imagem.jpg">
+              <button id="save-url-btn" class="checkout-button">Salvar URL</button>
+            </div>
           </div>
         </div>
       </div>

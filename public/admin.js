@@ -10,8 +10,15 @@ const elements = {
   editProductName: document.getElementById('edit-product-name'),
   editProductPrice: document.getElementById('edit-product-price'),
   imageUrl: document.getElementById('image-url'),
-  saveImageBtn: document.getElementById('save-image-btn'),
-  closeButtons: document.querySelectorAll('.close-button')
+  imageFile: document.getElementById('image-file'),
+  saveUrlBtn: document.getElementById('save-url-btn'),
+  uploadImageBtn: document.getElementById('upload-image-btn'),
+  closeButtons: document.querySelectorAll('.close-button'),
+  // Elementos das abas
+  tabUpload: document.getElementById('tab-upload'),
+  tabUrl: document.getElementById('tab-url'),
+  uploadContent: document.getElementById('upload-content'),
+  urlContent: document.getElementById('url-content')
 };
 
 // Função para carregar produtos
@@ -70,12 +77,27 @@ function mostrarModalEdicao(produto) {
   elements.editProductName.textContent = produto.nome;
   elements.editProductPrice.textContent = `R$ ${produto.preco.toFixed(2).replace('.', ',')}`;
   elements.imageUrl.value = produto.imagem || '';
+  elements.imageFile.value = '';
+  
+  // Mostrar aba de upload por padrão
+  mostrarAba('upload');
   
   mostrarModal(elements.imageModal);
 }
 
-// Salvar imagem
-async function salvarImagem() {
+// Mostrar aba
+function mostrarAba(aba) {
+  // Atualizar botões das abas
+  elements.tabUpload.classList.toggle('active', aba === 'upload');
+  elements.tabUrl.classList.toggle('active', aba === 'url');
+  
+  // Mostrar conteúdo da aba selecionada
+  elements.uploadContent.classList.toggle('active', aba === 'upload');
+  elements.urlContent.classList.toggle('active', aba === 'url');
+}
+
+// Salvar imagem via URL
+async function salvarImagemUrl() {
   if (!produtoEditando) return;
   
   const imageUrl = elements.imageUrl.value.trim();
@@ -103,6 +125,9 @@ async function salvarImagem() {
         produtos[index].imagem = imageUrl;
       }
       
+      // Atualizar imagem no modal
+      elements.editProductImage.src = imageUrl;
+      
       // Fechar modal
       fecharModal(elements.imageModal);
       
@@ -119,6 +144,66 @@ async function salvarImagem() {
   }
 }
 
+// Fazer upload de imagem
+async function fazerUploadImagem() {
+  if (!produtoEditando) return;
+  
+  const file = elements.imageFile.files[0];
+  
+  if (!file) {
+    alert('Por favor, selecione uma imagem para fazer upload.');
+    return;
+  }
+  
+  // Verificar se é uma imagem
+  if (!file.type.startsWith('image/')) {
+    alert('Por favor, selecione um arquivo de imagem válido.');
+    return;
+  }
+  
+  // Verificar tamanho (máximo 5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    alert('A imagem deve ter no máximo 5MB.');
+    return;
+  }
+  
+  try {
+    const formData = new FormData();
+    formData.append('imagem', file);
+    
+    const response = await fetch(`/api/produtos/${produtoEditando.id}/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // Atualizar produto na lista
+      const index = produtos.findIndex(p => p.id === produtoEditando.id);
+      if (index !== -1) {
+        produtos[index].imagem = result.imagePath;
+      }
+      
+      // Atualizar imagem no modal
+      elements.editProductImage.src = result.imagePath;
+      
+      // Fechar modal
+      fecharModal(elements.imageModal);
+      
+      // Recarregar produtos
+      carregarProdutos();
+      
+      alert('Imagem atualizada com sucesso!');
+    } else {
+      alert('Erro ao fazer upload da imagem: ' + result.error);
+    }
+  } catch (error) {
+    console.error('Erro ao fazer upload da imagem:', error);
+    alert('Erro ao fazer upload da imagem. Por favor, tente novamente.');
+  }
+}
+
 // Mostrar modal
 function mostrarModal(modal) {
   modal.classList.add('show');
@@ -132,7 +217,12 @@ function fecharModal(modal) {
 }
 
 // Event Listeners
-elements.saveImageBtn.addEventListener('click', salvarImagem);
+elements.saveUrlBtn.addEventListener('click', salvarImagemUrl);
+elements.uploadImageBtn.addEventListener('click', fazerUploadImagem);
+
+// Event Listeners para as abas
+elements.tabUpload.addEventListener('click', () => mostrarAba('upload'));
+elements.tabUrl.addEventListener('click', () => mostrarAba('url'));
 
 // Fechar modais com botão X
 elements.closeButtons.forEach(button => {
