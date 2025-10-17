@@ -71,6 +71,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
+// Rota para pedidos via WhatsApp
+app.get('/pedido', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/pedido.html'));
+});
+
 // Endpoint para pegar produtos
 app.get('/api/produtos', async (req, res) => {
   try {
@@ -203,6 +208,53 @@ app.post('/api/produtos/:id/imagem', async (req, res) => {
   } catch (error) {
     console.error('Erro ao atualizar imagem:', error);
     res.status(500).json({ error: 'Erro ao atualizar imagem' });
+  }
+});
+
+// Endpoint para atualizar dados do produto (nome, descricao, preco, categoria)
+app.put('/api/produtos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, descricao, preco, categoria } = req.body;
+    
+    // Atualizar produto com os novos dados
+    await db.run(
+      'UPDATE produtos SET nome = ?, descricao = ?, preco = ?, categoria = ? WHERE id = ?',
+      [nome, descricao, preco, categoria, id]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Produto atualizado com sucesso!'
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar produto:', error);
+    res.status(500).json({ error: 'Erro ao atualizar produto' });
+  }
+});
+
+// Endpoint para excluir produto
+app.delete('/api/produtos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verificar se o produto existe
+    const produto = await db.get('SELECT * FROM produtos WHERE id = ?', [id]);
+    
+    if (!produto) {
+      return res.status(404).json({ error: 'Produto não encontrado' });
+    }
+    
+    // Excluir o produto
+    await db.run('DELETE FROM produtos WHERE id = ?', [id]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Produto excluído com sucesso!'
+    });
+  } catch (error) {
+    console.error('Erro ao excluir produto:', error);
+    res.status(500).json({ error: 'Erro ao excluir produto' });
   }
 });
 

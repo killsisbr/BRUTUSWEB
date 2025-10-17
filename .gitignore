@@ -11,6 +11,7 @@ npm-debug.log*
 Thumbs.db
 server/node_modules/
 server/whatsapp-sessions/
+server/.wwebjs_cache/
 # Logs
 *.log
 

@@ -130,10 +130,12 @@ function renderizarProdutoAtual() {
   
   elements.currentProduct.innerHTML = `
     <div class="product-card">
-      <img src="${produto.imagem || 'https://via.placeholder.com/300x200'}" 
-           alt="${produto.nome}" 
-           class="product-image" 
-           onerror="this.src='https://via.placeholder.com/300x200'">
+      <div class="product-image-container">
+        <img src="${produto.imagem || 'https://via.placeholder.com/300x200'}" 
+             alt="${produto.nome}" 
+             class="product-image" 
+             onerror="this.src='https://via.placeholder.com/300x200'">
+      </div>
       <div class="product-info">
         <h3 class="product-name">${produto.nome}</h3>
         <p class="product-description">${produto.descricao || 'Delicioso lanche preparado com ingredientes frescos'}</p>

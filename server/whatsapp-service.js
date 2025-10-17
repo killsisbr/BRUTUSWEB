@@ -115,7 +115,7 @@ Qualquer dúvida, estou aqui para ajudar!`;
     const orderMessage = `🍕 Vamos criar seu pedido!
     
 Clique no link abaixo para acessar seu pedido personalizado:
-https://localhost:3005/pedido?whatsapp=${encodeURIComponent(whatsappId)}
+http://localhost:3005/pedido?whatsapp=${encodeURIComponent(whatsappId)}
 
 Após finalizar seu pedido no site, você receberá um resumo aqui no WhatsApp!`;
     

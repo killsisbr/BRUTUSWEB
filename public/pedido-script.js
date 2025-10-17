@@ -625,10 +625,20 @@ async function carregarClienteInfo() {
       elements.clientPhone.value = clienteInfo.telefone || '';
       elements.clientAddress.value = clienteInfo.endereco || '';
       
+      // Preencher automaticamente as informações salvas
+      if (clienteInfo.nome) {
+        elements.clientName.value = clienteInfo.nome;
+      }
+      
+      // Telefone não é necessário preencher novamente pois veio pelo WhatsApp
+      
       // Mostrar opção para usar endereço anterior
       if (clienteInfo.endereco) {
         elements.previousAddressText.textContent = `Usar endereço anterior: ${clienteInfo.endereco}`;
         elements.previousAddress.style.display = 'block';
+        
+        // Preencher endereço automaticamente, mas permitir alteração
+        elements.clientAddress.value = clienteInfo.endereco;
       }
     }
   } catch (error) {
@@ -683,10 +693,15 @@ elements.checkoutBtn.addEventListener('click', () => {
 elements.confirmOrderBtn.addEventListener('click', async () => {
   if (carrinho.length === 0) return;
   
-  // Validar campos obrigatórios
-  if (!elements.clientName.value || !elements.clientPhone.value || !elements.clientAddress.value) {
-    mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!');
+  // Validar campos obrigatórios (telefone não é obrigatório pois já veio pelo WhatsApp)
+  if (!elements.clientName.value || !elements.clientAddress.value) {
+    mostrarNotificacao('Por favor, preencha seu nome e endereço!');
     return;
+  }
+  
+  // Se já tem endereço salvo e não digitou um novo, usar o salvo
+  if (clienteInfo && clienteInfo.endereco && !elements.clientAddress.value) {
+    elements.clientAddress.value = clienteInfo.endereco;
   }
   
   // Verificar se o usuário quer usar o endereço anterior
@@ -694,8 +709,21 @@ elements.confirmOrderBtn.addEventListener('click', async () => {
     elements.clientAddress.value = clienteInfo.endereco;
   }
   
-  // Salvar informações do cliente
+  // Preparar dados do cliente para salvar no banco
+  const clienteData = {
+    nome: elements.clientName.value,
+    telefone: elements.clientPhone.value,
+    endereco: elements.clientAddress.value,
+    whatsappId: whatsappId
+  };
+  
+  // Salvar/atualizar informações do cliente no banco
   await salvarClienteInfo();
+  
+  // Se não preencheu telefone, usar o ID do WhatsApp como referência
+  if (!elements.clientPhone.value && whatsappId) {
+    elements.clientPhone.value = `WhatsApp: ${whatsappId.substring(0, 15)}...`;
+  }
   
   // Preparar dados do pedido
   const pedidoData = {
