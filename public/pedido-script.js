@@ -5,7 +5,7 @@ let produtosPorCategoria = {
   lanches: [],
   bebidas: [],
   porcoes: [],
-  adicionais: [] // Adicionando novamente a categoria de adicionais
+  adicionais: []
 };
 let categoriaAtual = 'lanches';
 let indiceProdutoAtual = 0;
@@ -13,10 +13,9 @@ let produtoSelecionado = null;
 let quantidadeSelecionada = 1;
 let observacaoAtual = '';
 let adicionaisSelecionados = [];
-// Novo estado para controlar em quais itens do carrinho aplicar os adicionais
 let adicionaisParaItensCarrinho = {};
-// Novo estado para controlar adicionais para novos itens
-let adicionaisParaNovoItem = [];
+let whatsappId = null;
+let clienteInfo = null;
 
 // Elementos do DOM
 const elements = {
@@ -53,7 +52,15 @@ const elements = {
   // Elementos do seletor de categorias
   categoryLanchesBtn: document.getElementById('category-lanches'),
   categoryBebidasBtn: document.getElementById('category-bebidas'),
-  categoryPorcoesBtn: document.getElementById('category-porcoes')
+  categoryPorcoesBtn: document.getElementById('category-porcoes'),
+  // Elementos do formulário do cliente
+  clientName: document.getElementById('client-name'),
+  clientPhone: document.getElementById('client-phone'),
+  clientAddress: document.getElementById('client-address'),
+  paymentMethod: document.getElementById('payment-method'),
+  usePreviousAddress: document.getElementById('use-previous-address'),
+  previousAddress: document.getElementById('previous-address'),
+  previousAddressText: document.getElementById('previous-address-text')
 };
 
 // Função para carregar produtos
@@ -602,6 +609,63 @@ function fecharModal(modal) {
   document.body.style.overflow = 'auto';
 }
 
+// Carregar informações do cliente via WhatsApp ID
+async function carregarClienteInfo() {
+  if (!whatsappId) return;
+  
+  try {
+    const res = await fetch(`/api/clientes/${encodeURIComponent(whatsappId)}`);
+    const data = await res.json();
+    
+    if (data.success && data.cliente) {
+      clienteInfo = data.cliente;
+      
+      // Preencher campos do formulário com dados salvos
+      elements.clientName.value = clienteInfo.nome || '';
+      elements.clientPhone.value = clienteInfo.telefone || '';
+      elements.clientAddress.value = clienteInfo.endereco || '';
+      
+      // Mostrar opção para usar endereço anterior
+      if (clienteInfo.endereco) {
+        elements.previousAddressText.textContent = `Usar endereço anterior: ${clienteInfo.endereco}`;
+        elements.previousAddress.style.display = 'block';
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao carregar informações do cliente:', error);
+  }
+}
+
+// Salvar informações do cliente
+async function salvarClienteInfo() {
+  if (!whatsappId) return;
+  
+  const clienteData = {
+    whatsappId: whatsappId,
+    nome: elements.clientName.value,
+    telefone: elements.clientPhone.value,
+    endereco: elements.clientAddress.value
+  };
+  
+  try {
+    const res = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(clienteData)
+    });
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      console.log('Informações do cliente salvas com sucesso');
+    }
+  } catch (error) {
+    console.error('Erro ao salvar informações do cliente:', error);
+  }
+}
+
 // Event Listeners
 elements.cartIcon.addEventListener('click', () => {
   mostrarModal(elements.cartModal);
@@ -616,16 +680,66 @@ elements.checkoutBtn.addEventListener('click', () => {
   mostrarModal(elements.checkoutModal);
 });
 
-elements.confirmOrderBtn.addEventListener('click', () => {
+elements.confirmOrderBtn.addEventListener('click', async () => {
   if (carrinho.length === 0) return;
   
-  // Fechar modal de checkout e mostrar confirmação
-  fecharModal(elements.checkoutModal);
-  mostrarModal(elements.confirmationModal);
+  // Validar campos obrigatórios
+  if (!elements.clientName.value || !elements.clientPhone.value || !elements.clientAddress.value) {
+    mostrarNotificacao('Por favor, preencha todos os campos obrigatórios!');
+    return;
+  }
   
-  // Limpar carrinho
-  carrinho = [];
-  atualizarCarrinho();
+  // Verificar se o usuário quer usar o endereço anterior
+  if (elements.usePreviousAddress.checked && clienteInfo && clienteInfo.endereco) {
+    elements.clientAddress.value = clienteInfo.endereco;
+  }
+  
+  // Salvar informações do cliente
+  await salvarClienteInfo();
+  
+  // Preparar dados do pedido
+  const pedidoData = {
+    cliente: {
+      nome: elements.clientName.value,
+      telefone: elements.clientPhone.value,
+      endereco: elements.clientAddress.value,
+      pagamento: elements.paymentMethod.value,
+      whatsappId: whatsappId
+    },
+    itens: carrinho,
+    total: carrinho.reduce((sum, item) => {
+      let precoProduto = item.produto.preco * item.quantidade;
+      const precoAdicionais = item.adicionais.reduce((acc, adicional) => acc + adicional.preco, 0) * item.quantidade;
+      return sum + precoProduto + precoAdicionais;
+    }, 0)
+  };
+  
+  try {
+    const res = await fetch('/api/pedidos', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(pedidoData)
+    });
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      // Fechar modal de checkout e mostrar confirmação
+      fecharModal(elements.checkoutModal);
+      mostrarModal(elements.confirmationModal);
+      
+      // Limpar carrinho
+      carrinho = [];
+      atualizarCarrinho();
+    } else {
+      mostrarNotificacao('Erro ao criar pedido. Tente novamente.');
+    }
+  } catch (error) {
+    console.error('Erro ao criar pedido:', error);
+    mostrarNotificacao('Erro ao criar pedido. Tente novamente.');
+  }
 });
 
 elements.newOrderBtn.addEventListener('click', () => {
@@ -684,15 +798,22 @@ document.querySelectorAll('.modal').forEach(modal => {
 });
 
 // Inicializar a aplicação
-document.addEventListener('DOMContentLoaded', () => {
-  carregarProdutos();
+document.addEventListener('DOMContentLoaded', async () => {
+  // Obter WhatsApp ID da URL
+  const urlParams = new URLSearchParams(window.location.search);
+  whatsappId = urlParams.get('whatsapp');
+  
+  await carregarProdutos();
+  
+  // Carregar informações do cliente se houver WhatsApp ID
+  if (whatsappId) {
+    await carregarClienteInfo();
+  }
   
   // Delegação de eventos para o botão "Adicionar ao Carrinho"
-  // Agora que o DOM está carregado, podemos adicionar o event listener
   elements.currentProduct.addEventListener('click', (e) => {
     if (e.target.classList.contains('add-to-cart')) {
       const produtoId = parseInt(e.target.dataset.id);
-      // Procurar o produto em todas as categorias
       produtoSelecionado = produtos.find(p => p.id === produtoId);
       if (produtoSelecionado) {
         mostrarModalQuantidade(produtoSelecionado);

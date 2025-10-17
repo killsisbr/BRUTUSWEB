@@ -44,6 +44,17 @@ async function popular() {
       preco_unitario REAL
     )`);
     
+    // Criar tabela de clientes para armazenar informações persistentes
+    await db.run(`CREATE TABLE IF NOT EXISTS clientes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      whatsapp_id TEXT UNIQUE,
+      nome TEXT,
+      telefone TEXT,
+      endereco TEXT,
+      data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+      data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    
     // Limpar produtos existentes
     await db.run(`DELETE FROM produtos`);
     

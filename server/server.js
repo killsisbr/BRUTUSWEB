@@ -5,12 +5,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import multer from 'multer';
+import WhatsAppService from './whatsapp-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3005;
 
 // Middleware para servir arquivos estáticos
 app.use(express.static(path.join(__dirname, '../public')));
@@ -63,6 +64,7 @@ app.use('/uploads', express.static(uploadDir));
 
 // Banco de dados será inicializado depois
 let db;
+let whatsappService;
 
 // Rota principal
 app.get('/', (req, res) => {
@@ -101,6 +103,24 @@ app.post('/api/pedidos', async (req, res) => {
       );
     }
     
+    // Se houver um ID do WhatsApp, enviar resumo do pedido
+    if (cliente.whatsappId) {
+      // Enviar notificação via WhatsApp (em background)
+      setImmediate(async () => {
+        try {
+          const chat = await whatsappService.client.getChatById(cliente.whatsappId);
+          await whatsappService.sendOrderSummary(chat, {
+            pedidoId,
+            cliente,
+            itens,
+            total
+          });
+        } catch (error) {
+          console.error('Erro ao enviar notificação via WhatsApp:', error);
+        }
+      });
+    }
+    
     res.json({ 
       success: true, 
       pedidoId: pedidoId,
@@ -109,6 +129,58 @@ app.post('/api/pedidos', async (req, res) => {
   } catch (error) {
     console.error('Erro ao criar pedido:', error);
     res.status(500).json({ error: 'Erro ao criar pedido' });
+  }
+});
+
+// Endpoint para buscar informações do cliente pelo WhatsApp ID
+app.get('/api/clientes/:whatsappId', async (req, res) => {
+  try {
+    const { whatsappId } = req.params;
+    const cliente = await db.get(
+      'SELECT * FROM clientes WHERE whatsapp_id = ?',
+      [whatsappId]
+    );
+    
+    if (cliente) {
+      res.json({ success: true, cliente });
+    } else {
+      res.json({ success: false, message: 'Cliente não encontrado' });
+    }
+  } catch (error) {
+    console.error('Erro ao buscar cliente:', error);
+    res.status(500).json({ error: 'Erro ao buscar cliente' });
+  }
+});
+
+// Endpoint para salvar/atualizar informações do cliente
+app.post('/api/clientes', async (req, res) => {
+  try {
+    const { whatsappId, nome, telefone, endereco } = req.body;
+    
+    // Verificar se o cliente já existe
+    const clienteExistente = await db.get(
+      'SELECT * FROM clientes WHERE whatsapp_id = ?',
+      [whatsappId]
+    );
+    
+    if (clienteExistente) {
+      // Atualizar informações do cliente existente
+      await db.run(
+        'UPDATE clientes SET nome = ?, telefone = ?, endereco = ?, data_atualizacao = datetime("now") WHERE whatsapp_id = ?',
+        [nome, telefone, endereco, whatsappId]
+      );
+      res.json({ success: true, message: 'Informações do cliente atualizadas com sucesso!' });
+    } else {
+      // Criar novo cliente
+      await db.run(
+        'INSERT INTO clientes (whatsapp_id, nome, telefone, endereco) VALUES (?, ?, ?, ?)',
+        [whatsappId, nome, telefone, endereco]
+      );
+      res.json({ success: true, message: 'Cliente cadastrado com sucesso!' });
+    }
+  } catch (error) {
+    console.error('Erro ao salvar cliente:', error);
+    res.status(500).json({ error: 'Erro ao salvar cliente' });
   }
 });
 
@@ -199,11 +271,26 @@ async function startServer() {
       preco_unitario REAL
     )`);
     
+    // Criar tabela de clientes para armazenar informações persistentes
+    await db.run(`CREATE TABLE IF NOT EXISTS clientes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      whatsapp_id TEXT UNIQUE,
+      nome TEXT,
+      telefone TEXT,
+      endereco TEXT,
+      data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+      data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    
     // Verificar se há produtos, se não houver, popular o banco
     const produtosExistentes = await db.get('SELECT COUNT(*) as count FROM produtos');
     if (produtosExistentes.count === 0) {
       await popularBancoDeDados();
     }
+    
+    // Inicializar serviço do WhatsApp
+    whatsappService = new WhatsAppService();
+    whatsappService.initialize();
     
     app.listen(PORT, () => {
       console.log(`Servidor rodando em http://localhost:${PORT}`);
