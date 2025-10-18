@@ -159,6 +159,28 @@
                   </label>
                 </div>
               </div>
+              
+              <!-- Seção de Entrega -->
+              <div id="delivery-section" class="delivery-section">
+                <h3>Entrega</h3>
+                <button type="button" id="use-location-btn" class="use-location-btn">
+                  <i class="fas fa-map-marker-alt"></i> Usar minha localização
+                </button>
+                
+                <!-- Informações da entrega -->
+                <div id="delivery-info" class="delivery-info" style="display: none;">
+                  <p>Distância: <span id="delivery-distance">0</span> km</p>
+                  <p>Valor da entrega: R$ <span id="delivery-price">0,00</span></p>
+                </div>
+                
+                <!-- Erros da entrega -->
+                <div id="delivery-error" class="delivery-error" style="display: none; color: #e74c3c;">
+                </div>
+                
+                <!-- Campo oculto para coordenadas -->
+                <input type="hidden" id="client-coordinates" name="client-coordinates">
+              </div>
+              
               <div class="form-group">
                 <label for="payment-method">Forma de Pagamento:</label>
                 <select id="payment-method">
@@ -188,5 +210,6 @@
     </div>
   </div>
   <script src="pedido-script.js"></script>
+  <script src="entrega.js"></script>
 </body>
 </html>

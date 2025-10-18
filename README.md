@@ -96,9 +96,11 @@ brutusweb/
 │   ├── index.html         # Página principal (carrossel de produtos)
 │   ├── pedido.html        # Interface de pedidos via WhatsApp
 │   ├── admin.html         # Painel administrativo
+│   ├── quadro.html        # Quadro de pedidos em tempo real
 │   ├── script.js          # Lógica do frontend principal
 │   ├── pedido-script.js   # Lógica específica para pedidos via WhatsApp
 │   ├── admin.js           # Lógica administrativa
+│   ├── quadro.js          # Lógica do quadro de pedidos
 │   └── style.css          # Estilos da aplicação
 ├── server/                # Backend da aplicação
 │   ├── server.js          # Servidor principal
@@ -147,6 +149,7 @@ Para adicionar ou editar produtos:
 - **Carrinho de compras**: Adicione, remova e edite quantidades
 - **Integração com WhatsApp**: Receba pedidos diretamente no WhatsApp
 - **Painel administrativo**: Gerencie produtos e imagens
+- **Quadro de pedidos em tempo real**: Monitore e gerencie pedidos com status
 - **Design responsivo**: Otimizado para dispositivos móveis
 
 ## 🔧 Comandos Úteis

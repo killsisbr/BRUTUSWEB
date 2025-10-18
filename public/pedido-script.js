@@ -16,6 +16,7 @@ let adicionaisSelecionados = [];
 let adicionaisParaItensCarrinho = {};
 let whatsappId = null;
 let clienteInfo = null;
+let entregaInfo = null; // Informações de entrega
 
 // Elementos do DOM
 const elements = {
@@ -60,7 +61,14 @@ const elements = {
   paymentMethod: document.getElementById('payment-method'),
   usePreviousAddress: document.getElementById('use-previous-address'),
   previousAddress: document.getElementById('previous-address'),
-  previousAddressText: document.getElementById('previous-address-text')
+  previousAddressText: document.getElementById('previous-address-text'),
+  // Elementos de entrega
+  useLocationBtn: document.getElementById('use-location-btn'),
+  deliveryInfo: document.getElementById('delivery-info'),
+  deliveryDistance: document.getElementById('delivery-distance'),
+  deliveryPrice: document.getElementById('delivery-price'),
+  deliveryError: document.getElementById('delivery-error'),
+  clientCoordinates: document.getElementById('client-coordinates')
 };
 
 // Função para carregar produtos
@@ -512,6 +520,13 @@ function atualizarCarrinho() {
   elements.cartTotal.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
   elements.orderTotal.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
   
+  // Atualizar total com valor da entrega, se disponível
+  if (entregaInfo && entregaInfo.price) {
+    const totalComEntrega = total + entregaInfo.price;
+    elements.cartTotal.textContent = `R$ ${totalComEntrega.toFixed(2).replace('.', ',')}`;
+    elements.orderTotal.textContent = `R$ ${totalComEntrega.toFixed(2).replace('.', ',')}`;
+  }
+  
   // Atualizar resumo do pedido
   atualizarResumoPedido();
 }
@@ -554,6 +569,20 @@ function atualizarResumoPedido() {
     li.innerHTML = itemHTML;
     elements.orderItemsSummary.appendChild(li);
   });
+  
+  // Adicionar item de entrega no resumo, se disponível
+  if (entregaInfo && entregaInfo.price) {
+    const entregaItem = document.createElement('li');
+    entregaItem.className = 'order-item-summary';
+    entregaItem.innerHTML = `
+      <div>
+        <div>Entrega</div>
+        <div>Distância: ${entregaInfo.distance.toFixed(2)} km</div>
+      </div>
+      <span>R$ ${entregaInfo.price.toFixed(2).replace('.', ',')}</span>
+    `;
+    elements.orderItemsSummary.appendChild(entregaItem);
+  }
 }
 
 // Mostrar notificação
@@ -727,19 +756,10 @@ elements.confirmOrderBtn.addEventListener('click', async () => {
   
   // Preparar dados do pedido
   const pedidoData = {
-    cliente: {
-      nome: elements.clientName.value,
-      telefone: elements.clientPhone.value,
-      endereco: elements.clientAddress.value,
-      pagamento: elements.paymentMethod.value,
-      whatsappId: whatsappId
-    },
+    cliente: clienteData,
     itens: carrinho,
-    total: carrinho.reduce((sum, item) => {
-      let precoProduto = item.produto.preco * item.quantidade;
-      const precoAdicionais = item.adicionais.reduce((acc, adicional) => acc + adicional.preco, 0) * item.quantidade;
-      return sum + precoProduto + precoAdicionais;
-    }, 0)
+    total: calcularTotalPedido(),
+    entrega: entregaInfo
   };
   
   try {
@@ -761,6 +781,18 @@ elements.confirmOrderBtn.addEventListener('click', async () => {
       // Limpar carrinho
       carrinho = [];
       atualizarCarrinho();
+      
+      // Limpar informações de entrega
+      entregaInfo = null;
+      if (elements.deliveryInfo) {
+        elements.deliveryInfo.style.display = 'none';
+      }
+      if (elements.deliveryError) {
+        elements.deliveryError.style.display = 'none';
+      }
+      if (elements.clientCoordinates) {
+        elements.clientCoordinates.value = '';
+      }
     } else {
       mostrarNotificacao('Erro ao criar pedido. Tente novamente.');
     }
@@ -769,6 +801,22 @@ elements.confirmOrderBtn.addEventListener('click', async () => {
     mostrarNotificacao('Erro ao criar pedido. Tente novamente.');
   }
 });
+
+// Calcular total do pedido (itens + entrega)
+function calcularTotalPedido() {
+  const totalItens = carrinho.reduce((sum, item) => {
+    let precoProduto = item.produto.preco * item.quantidade;
+    const precoAdicionais = item.adicionais.reduce((acc, adicional) => acc + adicional.preco, 0) * item.quantidade;
+    return sum + precoProduto + precoAdicionais;
+  }, 0);
+  
+  // Adicionar valor da entrega, se disponível
+  if (entregaInfo && entregaInfo.price) {
+    return totalItens + entregaInfo.price;
+  }
+  
+  return totalItens;
+}
 
 elements.newOrderBtn.addEventListener('click', () => {
   fecharModal(elements.confirmationModal);
@@ -838,6 +886,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await carregarClienteInfo();
   }
   
+  // Adicionar evento para o botão de usar localização
+  if (elements.useLocationBtn) {
+    elements.useLocationBtn.addEventListener('click', usarLocalizacao);
+  }
+  
   // Delegação de eventos para o botão "Adicionar ao Carrinho"
   elements.currentProduct.addEventListener('click', (e) => {
     if (e.target.classList.contains('add-to-cart')) {
@@ -849,3 +902,125 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 });
+
+// Função para usar a localização do usuário
+function usarLocalizacao() {
+  if (navigator.geolocation) {
+    // Mostrar mensagem de carregamento
+    if (elements.deliveryError) {
+      elements.deliveryError.textContent = 'Obtendo sua localização...';
+      elements.deliveryError.style.display = 'block';
+      elements.deliveryInfo.style.display = 'none';
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        
+        // Calcular entrega com as coordenadas obtidas
+        calcularEntrega(latitude, longitude);
+      },
+      error => {
+        tratarErroLocalizacao(error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
+  } else {
+    if (elements.deliveryError) {
+      elements.deliveryError.textContent = 'Geolocalização não é suportada pelo seu navegador.';
+      elements.deliveryError.style.display = 'block';
+    }
+  }
+}
+
+// Calcular valor da entrega
+async function calcularEntrega(latitude, longitude) {
+  try {
+    const response = await fetch('/api/entrega/calcular', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ latitude, longitude })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      if (data.error) {
+        // Fora da área de entrega
+        if (elements.deliveryError) {
+          elements.deliveryError.textContent = data.error;
+          elements.deliveryError.style.display = 'block';
+          elements.deliveryInfo.style.display = 'none';
+        }
+      } else {
+        // Entrega válida
+        entregaInfo = {
+          distance: data.distance,
+          price: data.price,
+          coordinates: { lat: latitude, lng: longitude }
+        };
+        
+        if (elements.deliveryInfo) {
+          elements.deliveryDistance.textContent = data.distance.toFixed(2);
+          elements.deliveryPrice.textContent = data.price.toFixed(2).replace('.', ',');
+          elements.deliveryInfo.style.display = 'block';
+          elements.deliveryError.style.display = 'none';
+        }
+        
+        // Salvar coordenadas no elemento hidden
+        if (elements.clientCoordinates) {
+          elements.clientCoordinates.value = JSON.stringify({ lat: latitude, lng: longitude });
+        }
+        
+        // Atualizar totais com o valor da entrega
+        atualizarCarrinho();
+      }
+    } else {
+      if (elements.deliveryError) {
+        elements.deliveryError.textContent = data.error || 'Erro ao calcular entrega.';
+        elements.deliveryError.style.display = 'block';
+        elements.deliveryInfo.style.display = 'none';
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao calcular entrega:', error);
+    if (elements.deliveryError) {
+      elements.deliveryError.textContent = 'Erro ao calcular valor da entrega. Por favor, tente novamente.';
+      elements.deliveryError.style.display = 'block';
+      elements.deliveryInfo.style.display = 'none';
+    }
+  }
+}
+
+// Tratar erros de localização
+function tratarErroLocalizacao(error) {
+  let errorMessage = '';
+  
+  switch (error.code) {
+    case error.PERMISSION_DENIED:
+      errorMessage = 'Permissão para acessar localização negada. Por favor, habilite o acesso à localização nas configurações do seu navegador.';
+      break;
+    case error.POSITION_UNAVAILABLE:
+      errorMessage = 'Informação de localização indisponível. Por favor, tente novamente.';
+      break;
+    case error.TIMEOUT:
+      errorMessage = 'Tempo limite para obter localização esgotado. Por favor, tente novamente.';
+      break;
+    default:
+      errorMessage = 'Erro desconhecido ao obter localização.';
+      break;
+  }
+  
+  if (elements.deliveryError) {
+    elements.deliveryError.textContent = errorMessage;
+    elements.deliveryError.style.display = 'block';
+    elements.deliveryInfo.style.display = 'none';
+  }
+}

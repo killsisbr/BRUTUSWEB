@@ -4,8 +4,13 @@ import { open } from 'sqlite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import dotenv from 'dotenv';
 import multer from 'multer';
 import WhatsAppService from './whatsapp-service.js';
+import DeliveryService from './services/delivery-service.js';
+
+// Carregar variáveis de ambiente
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,6 +70,7 @@ app.use('/uploads', express.static(uploadDir));
 // Banco de dados será inicializado depois
 let db;
 let whatsappService;
+let deliveryService;
 
 // Rota principal
 app.get('/', (req, res) => {
@@ -87,15 +93,40 @@ app.get('/api/produtos', async (req, res) => {
   }
 });
 
+// Endpoint para calcular valor da entrega
+app.post('/api/entrega/calcular', async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+    
+    if (!latitude || !longitude) {
+      return res.status(400).json({ 
+        error: 'Coordenadas não fornecidas' 
+      });
+    }
+    
+    const result = await deliveryService.processDelivery({
+      lat: parseFloat(latitude),
+      lng: parseFloat(longitude)
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Erro ao calcular entrega:', error);
+    res.status(500).json({ 
+      error: 'Erro ao calcular valor da entrega' 
+    });
+  }
+});
+
 // Endpoint para criar pedido
 app.post('/api/pedidos', async (req, res) => {
   try {
-    const { cliente, itens, total } = req.body;
+    const { cliente, itens, total, entrega } = req.body;
     
     // Inserir pedido
     const result = await db.run(
-      'INSERT INTO pedidos (cliente_nome, cliente_telefone, cliente_endereco, forma_pagamento, total, data) VALUES (?, ?, ?, ?, ?, datetime("now"))',
-      [cliente.nome, cliente.telefone, cliente.endereco, cliente.pagamento, total]
+      'INSERT INTO pedidos (cliente_nome, cliente_telefone, cliente_endereco, forma_pagamento, total, distancia, valor_entrega, coordenadas_cliente, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))',
+      [cliente.nome, cliente.telefone, cliente.endereco, cliente.pagamento, total, entrega?.distancia || null, entrega?.valor || null, entrega?.coordenadas ? JSON.stringify(entrega.coordenadas) : null]
     );
     
     const pedidoId = result.lastID;
@@ -134,6 +165,40 @@ app.post('/api/pedidos', async (req, res) => {
   } catch (error) {
     console.error('Erro ao criar pedido:', error);
     res.status(500).json({ error: 'Erro ao criar pedido' });
+  }
+});
+
+// Endpoint para buscar pedidos com itens
+app.get('/api/pedidos', async (req, res) => {
+  try {
+    // Buscar pedidos com informações do cliente
+    const pedidos = await db.all(`
+      SELECT p.*, 
+             c.nome as cliente_nome,
+             c.telefone as cliente_telefone,
+             c.endereco as cliente_endereco
+      FROM pedidos p
+      LEFT JOIN clientes c ON p.cliente_nome = c.nome
+      ORDER BY p.data DESC
+    `);
+    
+    // Buscar itens de cada pedido
+    for (const pedido of pedidos) {
+      pedido.itens = await db.all(`
+        SELECT pi.*, pr.nome as produto_nome
+        FROM pedido_itens pi
+        LEFT JOIN produtos pr ON pi.produto_id = pr.id
+        WHERE pi.pedido_id = ?
+      `, [pedido.id]);
+      
+      // Adicionar status (por padrão, 'pending' para pedidos novos)
+      pedido.status = pedido.status || 'pending';
+    }
+    
+    res.json(pedidos);
+  } catch (error) {
+    console.error('Erro ao buscar pedidos:', error);
+    res.status(500).json({ error: 'Erro ao buscar pedidos' });
   }
 });
 
@@ -287,6 +352,60 @@ app.post('/api/produtos/:id/upload', upload.single('imagem'), async (req, res) =
   }
 });
 
+// Endpoint para atualizar status do pedido
+app.put('/api/pedidos/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    // Verificar se o pedido existe
+    const pedido = await db.get('SELECT * FROM pedidos WHERE id = ?', [id]);
+    
+    if (!pedido) {
+      return res.status(404).json({ error: 'Pedido não encontrado' });
+    }
+    
+    // Atualizar status do pedido
+    await db.run('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Status do pedido atualizado com sucesso!'
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar status do pedido:', error);
+    res.status(500).json({ error: 'Erro ao atualizar status do pedido' });
+  }
+});
+
+// Endpoint para excluir pedido
+app.delete('/api/pedidos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verificar se o pedido existe
+    const pedido = await db.get('SELECT * FROM pedidos WHERE id = ?', [id]);
+    
+    if (!pedido) {
+      return res.status(404).json({ error: 'Pedido não encontrado' });
+    }
+    
+    // Excluir itens do pedido
+    await db.run('DELETE FROM pedido_itens WHERE pedido_id = ?', [id]);
+    
+    // Excluir o pedido
+    await db.run('DELETE FROM pedidos WHERE id = ?', [id]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Pedido excluído com sucesso!'
+    });
+  } catch (error) {
+    console.error('Erro ao excluir pedido:', error);
+    res.status(500).json({ error: 'Erro ao excluir pedido' });
+  }
+});
+
 // Inicialização do banco e servidor
 async function startServer() {
   try {
@@ -312,8 +431,31 @@ async function startServer() {
       cliente_endereco TEXT,
       forma_pagamento TEXT,
       total REAL,
-      data DATETIME
+      distancia REAL,
+      valor_entrega REAL,
+      coordenadas_cliente TEXT,
+      data DATETIME,
+      status TEXT DEFAULT 'pending'
     )`);
+    
+    // Adicionar colunas para entrega se não existirem
+    try {
+      await db.run(`ALTER TABLE pedidos ADD COLUMN distancia REAL`);
+    } catch (e) {
+      // Coluna já existe, ignorar erro
+    }
+    
+    try {
+      await db.run(`ALTER TABLE pedidos ADD COLUMN valor_entrega REAL`);
+    } catch (e) {
+      // Coluna já existe, ignorar erro
+    }
+    
+    try {
+      await db.run(`ALTER TABLE pedidos ADD COLUMN coordenadas_cliente TEXT`);
+    } catch (e) {
+      // Coluna já existe, ignorar erro
+    }
     
     await db.run(`CREATE TABLE IF NOT EXISTS pedido_itens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -340,9 +482,11 @@ async function startServer() {
       await popularBancoDeDados();
     }
     
-    // Inicializar serviço do WhatsApp
+    // Inicializar serviços
     whatsappService = new WhatsAppService();
     whatsappService.initialize();
+    
+    deliveryService = new DeliveryService();
     
     app.listen(PORT, () => {
       console.log(`Servidor rodando em http://localhost:${PORT}`);
